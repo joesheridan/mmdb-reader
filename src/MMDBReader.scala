@@ -26,6 +26,14 @@ object MMDBReader extends App {
   val bs = new BinarySearch(byteArray)
   val md = new MetaExtractor()
 
+  /*for {
+    meta <- md.getMetaData(byteArray)
+    dataPtr <- bs.getDataPtr(0, ip, 0, meta.nodeCount, 128)
+    de = new DataExtractor(byteArray, meta.getSearchTreeSectionSize + 16)
+    data <- de.getIsoCode(de.getGeoDataOffset(dataPtr))
+  } yield (data)
+*/
+
   md.getMetaData(byteArray) match {
     case Some(meta) => {
       println("record size:" + meta.recordSize)
@@ -39,7 +47,7 @@ object MMDBReader extends App {
         case Some(ptr) => {
           println(f"data location: 0x$ptr%x")
           val geoDataOffset = de.getGeoDataOffset(ptr)
-          val data = de.getGeoData(geoDataOffset)
+          val data = de.getIsoCode(geoDataOffset)
           println("got data:" + data)
         }
         case None => println("data for ip not found")

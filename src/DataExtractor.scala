@@ -22,10 +22,20 @@ case class ReadResult(item: Any, next: Int)
 class DataExtractor(bytes: Array[Byte], dataSection: Int) {
 
 
-  def getGeoData(ptr: Int) = {
+  def getIsoCode(recordPtr: Int): Try[String] = {
 
-    val x = readItem(ptr)
-    println("first item read:"+x)
+    val result = readItem(recordPtr)
+    result match {
+      case Success(ReadResult(item: Map[String, Any], next)) => {
+        Try {
+          val isoCode = item.get("country").flatMap { case m: Map[String, String] => m.get("iso_code") }
+          println("isocode:" + isoCode)
+          isoCode getOrElse (throw new Exception("iso_code entry not found in data record"))
+        }
+      }
+      case Success(_) => Failure(new Exception("data map not found"))
+      case Failure(e) => Failure(e)
+    }
 
   }
 
@@ -71,35 +81,38 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
       }
       case Success(ControlInfo(MAP(), size)) => {
         println("map found with items:" + size)
-        var nextPtr = Try(ptr + 1)
-        var map: Map[Any, Any] = Map()
-
-        // read key should be a string or a pointer to a string
-        for (i <- 1 to size) {
-          println("map iteration - i:" + i)
-          val pair = for {
-            next <- nextPtr
-            key <- readItem(next)
-            value <- readItem(key.next)
-          } yield (key, value)
-
-          println("map pair found:" + pair.toString)
-          pair match {
-            case Success((key, value)) => {
-              nextPtr = Try(value.next)
-              map += key.item -> value.item
-            }
-            case Failure(e) => { println("map match failed:" + e) }
-          }
-
-        }
-        println("_________________________map:" + map.mkString(" , "))
-        Try(ReadResult(map, nextPtr.getOrElse(0)))
+        readMap(ptr, size);
       }
 
       case Failure(e) => { println("failyre:"+ e); Failure(e) }
     }
 
+  }
+
+  def readMap(ptr: Int, size: Int): Try[ReadResult] = {
+    var nextPtr = ptr + 1
+    var map: Map[String, Any] = Map()
+
+    // read key should be a string or a pointer to a string
+    (1 to size).foreach { i =>
+      val pair = for {
+        key <- readItem(nextPtr)
+        value <- readItem(key.next)
+      } yield (key, value)
+
+      println("map pair found:" + pair.toString)
+      pair match {
+        case Success((ReadResult(key: String, next), value)) => {
+          nextPtr = value.next
+          map += key -> value.item
+        }
+        case Success(_) => { new Exception("map key not in string format:" + pair) }
+        case Failure(e) => { println("map match failed:" + e) }
+      }
+
+    }
+    println("_________________________map:" + map.mkString(" , "))
+    Try(ReadResult(map, nextPtr))
   }
 
   def readControlByte(ptr: Int): Try[ControlInfo] = {
