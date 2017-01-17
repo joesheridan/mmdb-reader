@@ -21,15 +21,15 @@ case class ReadResult(item: Any, next: Int)
 
 class DataExtractor(bytes: Array[Byte], dataSection: Int) {
 
-
   def getIsoCode(recordPtr: Int): Try[String] = {
 
     val result = readItem(recordPtr)
     result match {
-      case Success(ReadResult(item: Map[String, Any], next)) => {
+      case Success(ReadResult(map: Map[String, Any], _)) => {
         Try {
-          val isoCode = item.get("country").flatMap { case m: Map[String, String] => m.get("iso_code") }
-          println("isocode:" + isoCode)
+          val isoCode = map.get("country").flatMap {
+            case innerMap: Map[String, String] => innerMap.get("iso_code")
+          }
           isoCode getOrElse (throw new Exception("iso_code entry not found in data record"))
         }
       }
@@ -41,50 +41,46 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
 
   def readItem(ptr: Int): Try[ReadResult] = {
     val res = readControlByte(ptr)
+    val nextPtr = ptr + 1
 
-    println("ci2:" + res)
+    logger.debug("ci2:" + res)
 
    res match {
       case Success(ControlInfo(PTR(), payload)) => {
-
-          //println("reading ptr")
-          val pointer = getPointer(ptr, payload)
-          //prinltn("pointer value:" + getPointerVal(pointer))
+        val pointer = getPointer(ptr, payload)
         pointer.item match {
           case Success(ReadResult(item, next)) => {
+            // swap the next pointer to be the byte after the pointer
+            // not the one after the field the pointer has just read
             Success(ReadResult(item, pointer.next))
           }
           case Failure(e) => Failure(e)
         }
-
-
       }
       case Success(ControlInfo(STR(), size)) => {
-        println("reading str:" + readStr(ptr+1, size))
         Success(ReadResult(readStr(ptr + 1, size), ptr + 1 + size))
       }
       case Success(ControlInfo(DBL(), size)) => {
-        //println("reading double")
+        //logger.debug("reading double")
         Success(ReadResult(0, ptr + 1 + size))
       }
       case Success(ControlInfo(BYT(), size)) => {
-        //println("reading byte")
-        Success(ReadResult(0, ptr + size))
+        Failure(new Exception("MMDB read error - Byte type has not been implemented yet"))
       }
       case Success(ControlInfo(UINT16(), size)) => {
-        println("read uint16:" + readInt(ptr, size))
+        logger.debug("read uint16:" + readInt(ptr, size))
         Success(ReadResult(readInt(ptr, size), ptr + 1 + size))
       }
       case Success(ControlInfo(UINT32(), size)) => {
-        println("read uint32:" + readInt(ptr, size))
+        logger.debug("read uint32:" + readInt(ptr, size))
         Success(ReadResult(readInt(ptr, size), ptr + 1 + size))
       }
       case Success(ControlInfo(MAP(), size)) => {
-        println("map found with items:" + size)
+        logger.debug("map found with items:" + size)
         readMap(ptr, size);
       }
 
-      case Failure(e) => { println("failyre:"+ e); Failure(e) }
+      case Failure(e) => { logger.debug("failyre:"+ e); Failure(e) }
     }
 
   }
@@ -100,18 +96,19 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
         value <- readItem(key.next)
       } yield (key, value)
 
-      println("map pair found:" + pair.toString)
+      logger.debug("map pair found:" + pair.toString)
       pair match {
-        case Success((ReadResult(key: String, next), value)) => {
+        case Success((ReadResult(key: String, _), value)) => {
           nextPtr = value.next
+          // add the key value pair to the map
           map += key -> value.item
         }
         case Success(_) => { new Exception("map key not in string format:" + pair) }
-        case Failure(e) => { println("map match failed:" + e) }
+        case Failure(e) => { logger.debug("map match failed:" + e) }
       }
 
     }
-    println("_________________________map:" + map.mkString(" , "))
+    logger.debug("_________________________map:" + map.mkString(" , "))
     Try(ReadResult(map, nextPtr))
   }
 
@@ -120,10 +117,9 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
       val cbyte = bytes(ptr) & 0xFF
       val ctype = cbyte >> 5
       val payload = bytes(ptr) & 0x1f
-      //println(f"control byte: $cbyte%x - int:" + ctype + " size in bytes:" + payload)
+      //logger.debug(f"control byte: $cbyte%x - int:" + ctype + " size in bytes:" + payload)
       val fieldtype = ctype match {
         case 0 => {
-          //println("control byte was zero..")
           throw new Exception("control byte was zero")
         }
         case 1 => PTR()
@@ -134,14 +130,11 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
         case 6 => UINT32()
         case 7 => MAP()
       }
-      val next = ptr + 1
       ControlInfo(fieldtype, payload)
     }
   }
 
-  def readInt(ptr: Int, size: Int): Int = {
-    getIntFromBytes(ptr, size)
-  }
+  def readInt(ptr: Int, size: Int): Int = getIntFromBytes(ptr, size)
 
   def getIntFromBytes(ptr: Int, bytesNum: Int): Int = {
     // get 4 bytes and convert to unsigned int
@@ -149,14 +142,12 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
     val b2 = bytes(ptr+1) & 0xFF
     val b3 = bytes(ptr+2) & 0xFF
     val b4 = bytes(ptr+3) & 0xFF
-    val res = bytesNum match {
+    bytesNum match {
       case 1 => b1
-      case 2 => (b1 << 8) + b2
-      case 3 => (b1 << 16) + (b2 << 8) + b3
-      case 4 => (b1 << 24) + (b2 << 16) + (b3 << 8) + b4
+      case 2 => concat2Bytes(b1, b2)
+      case 3 => concat3Bytes(b1, b2, b3)
+      case 4 => concat4Bytes(b1, b2, b3, b4)
     }
-    //println("getintfrombytes res:"+res)
-    res
   }
 
   def concat2Bytes(b1: Int, b2: Int): Int = {
@@ -174,7 +165,6 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
   def getPointer(ptr: Int, payload: Int): Pointer = {
     // get the size bits (4 and 5)
     val size = (payload & 0x18) >> 3
-    //println("pointer size:"+size)
     // get first 3 bits of pointer value
     val firstBits = payload & 0x7
     size match {
@@ -199,32 +189,14 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
 
   def getPointerVal(ptr: Int, next: Int): Pointer = {
     val address = ptr + dataSection
-    //println(f"pointer address: 0x$address%x")
-    //println("pointer data val:" + (bytes(address) & 0xFF).toChar)
-
     Pointer(ptr, next, readItem(address))
   }
 
-  def getStr(ptr: Int): Try[String] = {
-    val ci = readControlByte(ptr)
-    ci match {
-      case Success(ControlInfo(STR(), size)) => {
-        Success(readStr(ptr+1, size))
-      }
-      case Success(_) => {
-        throw new Exception("getstr expecting string - parsing failed")
-      }
-      case Failure(e) => Failure(e)
-    }
-  }
-
   def readStr(ptr: Int, size: Int): String = {
-    val r = bytes.slice(ptr, ptr+size).toList
-    //println(r)
-    r.map(_.toChar).mkString
+    val chunk = bytes.slice(ptr, ptr + size).toList
+    chunk.map(_.toChar).mkString
   }
 
-  def getGeoDataOffset(ptr: Int): Int = {
-    ptr + dataSection
-  }
+  def getGeoDataOffset(ptr: Int): Int = ptr + dataSection
+
 }

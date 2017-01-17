@@ -3,34 +3,38 @@ package mmdb
 /**
   * Created by joe on 14/01/2017.
   */
+
+import scala.util.{Try, Success, Failure}
+
 class BinarySearch(byteArray: Array[Byte]) {
 
-  def getDataPtr(nodeAddress: Int, ip: IP, ipBit: Int, nodeCount: Int, ipLength: Int): Option[Int] = {
+  def getGeoDataRecord(nodeAddress: Int, ip: IPAddress, ipBit: Int, nodeCount: Int, ipLength: Int): Try[Int] = {
 
-    def getNodeAddress(nodeNumber: Int): Int = {
-      //println("getting node address:"+nodeNumber * ((recordSize * 2) / 8))
-      (nodeNumber * 6)
+    def getNodeAddress(nodeNumber: Int): Int = (nodeNumber * 6)
+
+    if (ipBit == ipLength) {
+      // we've come too far
+      return Failure(new Exception("Data record location not found"))
     }
 
-    if (ipBit == ipLength) return None
-
     val result = getNodeVal(nodeAddress, byteArray, getDirection(ipBit, ip, ipLength))
-    println(f"getting node val - address: $nodeAddress bit: $ipBit val " +
+    logger.debug(f"getting node val - address: $nodeAddress bit: $ipBit val " +
               getDirection(ipBit, ip, ipLength) + " got val: " + (result))
     result match {
-      case x if x == nodeCount => println("address data does not exist for this ip"); return None
+      case x if x == nodeCount => {
+        Failure(new Exception("address data does not exist for this ip"))
+      }
       case dataPtr if dataPtr > nodeCount => {
-        println(s"address pointer found: $dataPtr")
-        return Some(getDataOffset(result, nodeCount))
+        logger.debug(s"address pointer found: $dataPtr")
+        return Success(getDataOffset(result, nodeCount))
       }
       case nodeNum if nodeNum < nodeCount => {
-
-        getDataPtr(getNodeAddress(nodeNum), ip, ipBit + 1, nodeCount, ipLength)
+        getGeoDataRecord(getNodeAddress(nodeNum), ip, ipBit + 1, nodeCount, ipLength)
       }
     }
   }
 
-  def getDirection(index: Int, ip: IP, ipLength: Int): Direction = {
+  def getDirection(index: Int, ip: IPAddress, ipLength: Int): Direction = {
     ip.getv6Mapped(index) match {
       case '0' => Left()
       case '1' => Right()

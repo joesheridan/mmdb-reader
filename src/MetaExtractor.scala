@@ -4,6 +4,9 @@ package mmdb
   * Created by joe on 14/01/2017.
   */
 
+
+import scala.util.{Try, Success, Failure}
+
 case class MetaData(recordSize: Int, nodeCount: Int) {
   def getSearchTreeSectionSize: Int = {
     ( ( recordSize * 2 ) / 8 ) * nodeCount
@@ -12,7 +15,7 @@ case class MetaData(recordSize: Int, nodeCount: Int) {
 
 class MetaExtractor {
 
-  def getMetaData(bytes: Array[Byte]): Option[MetaData] = {
+  def getMetaData(bytes: Array[Byte]): Try[MetaData] = {
     for {
       rs <- getRecordSize(bytes)
       nc <- getNodeCount(bytes)
@@ -20,26 +23,25 @@ class MetaExtractor {
   }
 
 
-  def getRecordSize(bytes: Array[Byte]) : Option[Int] = {
+  def getRecordSize(bytes: Array[Byte]) : Try[Int] = {
     val rsOffset = findLastStr(bytes, "record_size") + "record_size".length
-    //Integer.parseInt(f"$rs%x$rs2%x",16)
     rsOffset match {
-      case y if y < 0 => None
-      case x => Some(bytes(rsOffset+1))
+      case y if y < 0 => Failure(new Exception("record size detected was a negative value"))
+      case x => Success(bytes(rsOffset+1) & 0xFF)
     }
   }
 
-  def getNodeCount(bytes: Array[Byte]) : Option[Int] = {
+  def getNodeCount(bytes: Array[Byte]) : Try[Int] = {
     val controlByteOffset = findLastStr(bytes, "node_count") + "node_count".length
     val cinfo = readControlByte(controlByteOffset, bytes)
     cinfo match {
-      case ControlInfo(UINT16(), y) => {
-        println("getting uint16")
-        Some(getIntFromBytes(controlByteOffset+1, cinfo.payload, bytes))
+      case ControlInfo(UINT16(), payload) => {
+        logger.debug("getting uint16")
+        Success(getIntFromBytes(controlByteOffset+1, payload, bytes))
       }
-      case ControlInfo(UINT32(), y) => {
-        println("parsing uint32")
-        Some(getIntFromBytes(controlByteOffset+1, cinfo.payload, bytes))
+      case ControlInfo(UINT32(), payload) => {
+        logger.debug("parsing uint32")
+        Success(getIntFromBytes(controlByteOffset+1, payload, bytes))
       }
     }
   }
@@ -56,7 +58,7 @@ class MetaExtractor {
       case 3 => (b1 << 16) + (b2 << 8) + b3
       case 4 => (b1 << 24) + (b2 << 16) + (b3 << 8) + b4
     }
-    //println("getintfrombytes res:"+res)
+    //logger.debug("getintfrombytes res:"+res)
     res
   }
 
@@ -64,7 +66,7 @@ class MetaExtractor {
     val cbyte = bytes(ptr) & 0xFF
     val ctype = cbyte >> 5
     val payload = bytes(ptr) & 0x1f
-    println("field type (first 3 bits) to int:" + ctype + " size in bytes:" + payload)
+    logger.debug("field type (first 3 bits) to int:" + ctype + " size in bytes:" + payload)
     val fieldtype = ctype match {
       case 1 => PTR()
       case 2 => STR()
