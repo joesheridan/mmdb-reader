@@ -5,6 +5,7 @@
 package mmdb
 
 import java.nio.file.{Files, Paths}
+import scala.util.Try
 
 abstract class Direction
 case class Right() extends Direction
@@ -18,23 +19,30 @@ object logger {
   def debug(x: Any) = { if (debugEnabled) println(x) }
 }
 
-object MMDBReader extends App {
+object MMDBReader {
 
-  // read db file
-  val byteArray = Files.readAllBytes(Paths.get("GeoLite2-Country.mmdb"))
+  def main(args: Array[String]) = {
+    println(lookupIP("GeoLite2-Country.mmdb", "178.20.86.35"))
+  }
 
-  // create ip address
-  //val ip = new IP(62,254,119,11)
-  val ip = new IPAddress("178.20.86.0")
-  val bs = new BinarySearch(byteArray)
-  val md = new MetaExtractor()
+  def lookupIP(dbfile: String, ipStr: String): Try[String] = {
 
-  val d = for {
-    meta <- md.getMetaData(byteArray)
-    geoDataRecord <- bs.getGeoDataRecord(0, ip, 0, meta.nodeCount, 128)
-    de = new DataExtractor(byteArray, meta.getSearchTreeSectionSize + 16)
-    data <- de.getIsoCode(de.getGeoDataOffset(geoDataRecord))
-  } yield (data)
-  println("isocode:"+d)
+    // read db file
+    val byteArray = Files.readAllBytes(Paths.get(dbfile))
+
+    // create ip address
+    val ip = new IPAddress(ipStr)
+    val bs = new BinarySearch(byteArray)
+    val md = new MetaExtractor()
+
+    for {
+      meta <- md.getMetaData(byteArray)
+      geoDataRecord <- bs.getGeoDataRecord(0, ip, 0, meta.nodeCount, 128)
+      de = new DataExtractor(byteArray, meta.getSearchTreeSectionSize + 16)
+      data <- de.getIsoCode(de.getGeoDataOffset(geoDataRecord))
+    } yield (data)
+
+  }
+
 
 }
