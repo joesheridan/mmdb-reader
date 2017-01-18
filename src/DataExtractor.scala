@@ -7,13 +7,13 @@ package mmdb
 import scala.util.{Try, Success, Failure}
 
 abstract class FieldType
-case class PTR() extends FieldType
-case class STR() extends FieldType
-case class DBL() extends FieldType
-case class BYT() extends FieldType
-case class UINT16() extends FieldType
-case class UINT32() extends FieldType
-case class MAP() extends FieldType
+case object PTR extends FieldType
+case object STR extends FieldType
+case object DBL extends FieldType
+case object BYT extends FieldType
+case object UINT16 extends FieldType
+case object UINT32 extends FieldType
+case object MAP extends FieldType
 
 case class ControlInfo(fieldType: FieldType, payload: Int)
 case class Pointer(address: Int, next: Int, item: Any)
@@ -46,7 +46,7 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
     logger.debug("ci2:" + res)
 
    res match {
-      case Success(ControlInfo(PTR(), payload)) => {
+      case Success(ControlInfo(PTR, payload)) => {
         val pointer = getPointer(ptr, payload)
         pointer.item match {
           case Success(ReadResult(item, next)) => {
@@ -57,25 +57,25 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
           case Failure(e) => Failure(e)
         }
       }
-      case Success(ControlInfo(STR(), size)) => {
+      case Success(ControlInfo(STR, size)) => {
         Success(ReadResult(readStr(ptr + 1, size), ptr + 1 + size))
       }
-      case Success(ControlInfo(DBL(), size)) => {
+      case Success(ControlInfo(DBL, size)) => {
         //logger.debug("reading double")
         Success(ReadResult(0, ptr + 1 + size))
       }
-      case Success(ControlInfo(BYT(), size)) => {
+      case Success(ControlInfo(BYT, size)) => {
         Failure(new Exception("MMDB read error - Byte type has not been implemented yet"))
       }
-      case Success(ControlInfo(UINT16(), size)) => {
+      case Success(ControlInfo(UINT16, size)) => {
         logger.debug("read uint16:" + readInt(ptr, size))
         Success(ReadResult(readInt(ptr, size), ptr + 1 + size))
       }
-      case Success(ControlInfo(UINT32(), size)) => {
+      case Success(ControlInfo(UINT32, size)) => {
         logger.debug("read uint32:" + readInt(ptr, size))
         Success(ReadResult(readInt(ptr, size), ptr + 1 + size))
       }
-      case Success(ControlInfo(MAP(), size)) => {
+      case Success(ControlInfo(MAP, size)) => {
         logger.debug("map found with items:" + size)
         readMap(ptr, size);
       }
@@ -122,13 +122,13 @@ class DataExtractor(bytes: Array[Byte], dataSection: Int) {
         case 0 => {
           throw new Exception("control byte was zero")
         }
-        case 1 => PTR()
-        case 2 => STR()
-        case 3 => DBL()
-        case 4 => BYT()
-        case 5 => UINT16()
-        case 6 => UINT32()
-        case 7 => MAP()
+        case 1 => PTR
+        case 2 => STR
+        case 3 => DBL
+        case 4 => BYT
+        case 5 => UINT16
+        case 6 => UINT32
+        case 7 => MAP
       }
       ControlInfo(fieldtype, payload)
     }

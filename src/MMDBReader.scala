@@ -7,10 +7,6 @@ package mmdb
 import java.nio.file.{Files, Paths}
 import scala.util.Try
 
-abstract class Direction
-case class Right() extends Direction
-case class Left() extends Direction
-
 /**
   * Custom logger which can be enabled or disabled
   */

@@ -16,14 +16,21 @@ The geo data record is in a binary format comprised of fields which begin with a
 Once we have parsed the geo data record, we can extract the country iso code which indicates which country the given IP is registered to.
 
 ## Code Example
-
+```scala
 import mmdb.MMDBReader
 ...
 MMDBReader.lookupIP("path-to-GeoLite2-Country.mmdb", "some-IP-String")
+```
 
 The lookupIP function returns a Try[String]
 
 ## Installation
+I suggest you clone the project, build a jar, then add the jar as an external library in your IDE.
+In SBT you can add this to build.sbt:
+
+```
+unmanagedJars in Compile += file(Path.userHome + "path-to-mmdb-reader.jar")
+```
 
 ## Dependencies
 
