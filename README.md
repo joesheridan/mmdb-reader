@@ -1,11 +1,10 @@
-MMDB Reader in Scala
+## Synopsis
 
-Overview
 MaxMind publish an IP geolocation database in their custom .mmdb format.
 This repo contains code to parse the data in the database and return the geo-location information for a given IP address.
 
+## How The MMDB Format Works
 
-How The MMDB Format Works
 There are three distinct sections in the mmdb file format:
 The Meta Data Section
 The Binary Search Tree
@@ -16,7 +15,20 @@ Then we take the binary representation of the IP address and for each bit, we ta
 The geo data record is in a binary format comprised of fields which begin with a control byte which indicates which type of field it is. Common fields include Maps, Strings, Pointers and variable length format Ints.
 Once we have parsed the geo data record, we can extract the country iso code which indicates which country the given IP is registered to.
 
-Versions
+## Code Example
+
+import mmdb.MMDBReader
+...
+MMDBReader.lookupIP("path-to-GeoLite2-Country.mmdb", "some-IP-String")
+
+The lookupIP function returns a Try[String]
+
+## Installation
+
+## Dependencies
+
 The code is based on the following:
 MaxMind GeoLite2-Country.mmdb database
 Scala 2.11.8
+
+## License
