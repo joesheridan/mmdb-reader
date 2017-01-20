@@ -1,15 +1,16 @@
 package mmdb
 
-/**
-  * Created by joe on 14/01/2017.
-  */
-
 import scala.util.{Try, Success, Failure}
 
 abstract class Direction
 case object Right extends Direction
 case object Left extends Direction
 
+/**
+  * Provides functionality to navigate through the binary search tree
+  * to locate the right geo data based on the given ip address
+  * @param byteArray - the byte array of the mmdb file
+  */
 class BinarySearch(byteArray: Array[Byte]) {
 
   /**
