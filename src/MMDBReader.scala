@@ -1,7 +1,4 @@
 
-/**
-  * Created by joe on 09/01/2017.
-  */
 package mmdb
 
 import java.nio.file.{Files, Paths}
@@ -15,12 +12,21 @@ object logger {
   def debug(x: Any) = { if (debugEnabled) println(x) }
 }
 
+/**
+  * Provides high level functions to extract geo data from a given mmdb database file
+  */
 object MMDBReader {
 
   def main(args: Array[String]) = {
     println(lookupIP("GeoLite2-Country.mmdb", "178.20.86.35"))
   }
 
+  /**
+    * Retrieves geo-location information about a given IP
+    * @param dbfile - the mmdb file to read
+    * @param ipStr - a string containing the IP address
+    * @return - the iso country code string corresponding to the IP location
+    */
   def lookupIP(dbfile: String, ipStr: String): Try[String] = {
 
     // read db file
